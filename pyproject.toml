@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ultimate-excel-converter"
+version = "0.1.0"
+description = "Local, reviewable Excel conversion with configurable profiles"
+requires-python = ">=3.11"
+dependencies = ["openpyxl>=3.1.5,<4"]
+
+[project.scripts]
+excel-converter = "excel_converter.__main__:main"
+
+[tool.setuptools.package-data]
+excel_converter = ["profiles/*.json"]

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "Демонстрационный реестр операций",
+  "description": "Синтетический формат. Совместимость с системой департамента не подтверждена.",
+  "sheet_name": "Операции",
+  "fields": [
+    {"id": "date", "title": "Дата операции", "kind": "date", "required": true, "aliases": ["Дата", "Дата платежа"]},
+    {"id": "document", "title": "Номер документа", "kind": "text", "required": true, "aliases": ["Документ", "№ документа"]},
+    {"id": "identifier", "title": "БИН/ИИН", "kind": "identifier", "required": true, "aliases": ["БИН", "ИИН", "БИН контрагента"]},
+    {"id": "party", "title": "Контрагент", "kind": "text", "required": true, "aliases": ["Наименование", "Получатель"]},
+    {"id": "amount", "title": "Сумма", "kind": "amount", "required": true, "aliases": ["Сумма платежа", "Сумма операции"]},
+    {"id": "currency", "title": "Валюта", "kind": "currency", "required": true, "aliases": ["Код валюты"]},
+    {"id": "purpose", "title": "Назначение платежа", "kind": "text", "required": false, "aliases": ["Назначение", "Комментарий"]}
+  ],
+  "mapping": {}
+}
