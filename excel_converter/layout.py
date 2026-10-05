@@ -83,7 +83,7 @@ def build(app):
         button = ttk.Button(card, text=label, command=lambda k=key: app.start_demo(k))
         button.pack(side='bottom', anchor='w', pady=(4, 0))
         app.demo_buttons.append(button)
-    app.demo_button = ttk.Button(home, text='Сохранить учебные файлы в папку…', command=app.make_demo)
+    app.demo_button = ttk.Button(home, text='Сохранить набор из 24 примеров…', command=app.make_demo)
     app.demo_button.pack(anchor='w', pady=(18, 10))
     ttk.Label(home, text='Демонстрационный формат. Совместимость с системой департамента ещё не проверена.', style='Muted.TLabel', wraplength=1000).pack(anchor='w')
 

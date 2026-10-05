@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .core import convert, export_result, headers, load_profile, load_source, suggest_header, suggest_mapping, write_report
 from .demo import create_demo
+from .example_pack import create_example_pack
 
 
 def main():
@@ -11,6 +12,8 @@ def main():
     sub = parser.add_subparsers(dest="command")
     demo = sub.add_parser("demo", help="Создать синтетические примеры")
     demo.add_argument("directory", type=Path)
+    examples = sub.add_parser('examples', help='Создать расширенный набор из 24 учебных файлов')
+    examples.add_argument('directory', type=Path)
     cli = sub.add_parser("convert", help="Проверить и преобразовать один лист")
     cli.add_argument("input", type=Path)
     cli.add_argument("output", type=Path)
@@ -21,7 +24,10 @@ def main():
     cli.add_argument("--accept-warnings", action="store_true", help="Подтвердить сохранение при предупреждениях")
     args = parser.parse_args()
     try:
-        if args.command == "demo":
+        if args.command == 'examples':
+            paths = create_example_pack(args.directory)
+            print(f'Учебных файлов: {len(paths)}. Каталог: {args.directory / "КАТАЛОГ.md"}')
+        elif args.command == "demo":
             for path in create_demo(args.directory):
                 print(path)
         elif args.command == "convert":

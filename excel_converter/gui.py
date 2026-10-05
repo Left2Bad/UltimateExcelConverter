@@ -16,6 +16,7 @@ from openpyxl.utils import get_column_letter
 from .core import (convert, export_result, headers, load_profile, load_source,
                    suggest_header, suggest_mapping, write_report)
 from .demo import create_demo, create_scenario
+from .example_pack import create_example_pack
 from .dpi import create_root, px, scale_widgets, apply_style_scale, watch_dpi
 
 
@@ -355,7 +356,11 @@ class Application(ttk.Frame):
     def make_demo(self):
         directory = filedialog.askdirectory(title="Папка для синтетических примеров")
         if directory:
-            self.run_background(lambda: create_demo(directory), lambda paths: self.load_file(paths[0]), "Создание учебных примеров…")
+            self.run_background(lambda: create_example_pack(directory), self.examples_created, "Создание 24 учебных файлов…")
+
+    def examples_created(self, paths):
+        messagebox.showinfo('Учебные файлы готовы', f'Создано файлов: {len(paths)}.\n\nПапка: {paths[0].parent.parent}\nОписание сценариев: КАТАЛОГ.md\n\nСейчас откроется первый пример.')
+        self.load_file(paths[0])
 
     def toggle_fullscreen(self):
         self.root.attributes('-fullscreen', not self.root.attributes('-fullscreen'))
