@@ -1,0 +1,272 @@
+[
+  {
+    "file": "01_Автоматически/01_обычный_реестр.xlsx",
+    "title": "Обычный реестр",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Три записи; сумма в KZT: 3650,50.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/02_разные_даты.xlsx",
+    "title": "Даты в разных форматах",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 9,
+    "settings": {},
+    "note": "Все девять дат преобразуются в 2026-12-31.",
+    "sheet": "Операции",
+    "records_after_settings": 9
+  },
+  {
+    "file": "01_Автоматически/03_разные_суммы.xlsx",
+    "title": "Форматы сумм",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 9,
+    "settings": {},
+    "note": "Все девять сумм преобразуются в 1234,56 KZT.",
+    "sheet": "Операции",
+    "records_after_settings": 9
+  },
+  {
+    "file": "01_Автоматически/04_разные_валюты.xlsx",
+    "title": "Названия и коды валют",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 8,
+    "settings": {},
+    "note": "Ожидаются KZT, KZT, KZT, USD, EUR, RUB, GBP, CNY. Суммы по разным валютам не складываются.",
+    "sheet": "Операции",
+    "records_after_settings": 8
+  },
+  {
+    "file": "01_Автоматически/05_возвраты_и_нулевые_суммы.xlsx",
+    "title": "Возвраты и нули",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 5,
+    "settings": {},
+    "note": "Ожидаются -250, -250, -250, 0, 250; сумма в KZT: -500.",
+    "sheet": "Операции",
+    "records_after_settings": 5
+  },
+  {
+    "file": "01_Автоматически/06_идентификаторы.xlsx",
+    "title": "Ведущие нули и группировка",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 5,
+    "settings": {},
+    "note": "Первые три идентификатора станут текстом 001234567890; нули сохраняются.",
+    "sheet": "Операции",
+    "records_after_settings": 5
+  },
+  {
+    "file": "01_Автоматически/07_дубликаты_пустые_строки.xlsx",
+    "title": "Дубликаты и пустые строки",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Три записи сохранены, пустая строка пропущена. Дубликат отмечен предупреждением.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/08_переставленные_столбцы.xlsx",
+    "title": "Другой порядок столбцов",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Поля определяются по синонимам, выходной порядок остаётся порядком профиля.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/09_заголовок_после_шапки.xlsx",
+    "title": "Заголовок после служебной шапки",
+    "status": "ready",
+    "header_row": 6,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Строка заголовков — 6. Шапка объединена; строки до заголовка не выгружаются.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/10_несколько_листов.xlsx",
+    "title": "Несколько листов",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Выберите лист «Операции». Остальные листы не выгружаются; появится предупреждение.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/11_необязательное_поле.xlsx",
+    "title": "Нет назначения платежа",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Назначение необязательно. Все три записи выгружаются с пустым назначением.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/12_тысяча_операций.xlsx",
+    "title": "Реестр на 1000 строк",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 1000,
+    "settings": {},
+    "note": "1000 записей, сумма в KZT: 100000,00. Предпросмотр покажет первые 200.",
+    "sheet": "Операции",
+    "records_after_settings": 1000
+  },
+  {
+    "file": "01_Автоматически/13_csv_точка_с_запятой.csv",
+    "title": "CSV UTF-8 с разделителем ;",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Три записи; дробные части записаны запятой.",
+    "sheet": "CSV",
+    "records_after_settings": 3
+  },
+  {
+    "file": "01_Автоматически/14_csv_запятые_и_кавычки.csv",
+    "title": "CSV с запятыми и кавычками",
+    "status": "ready",
+    "header_row": 1,
+    "valid_rows": 3,
+    "settings": {},
+    "note": "Значения с десятичной запятой заключены в кавычки; три записи читаются корректно.",
+    "sheet": "CSV",
+    "records_after_settings": 3
+  },
+  {
+    "file": "02_Нужны_настройки/15_порядок_даты.xlsx",
+    "title": "Неоднозначный день и месяц",
+    "status": "settings",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {
+      "date_order": "dmy"
+    },
+    "note": "Авто: две ошибки. Выберите «День–месяц–год» → даты 2026-05-04 и 2026-12-11.",
+    "sheet": "Операции",
+    "records_after_settings": 2
+  },
+  {
+    "file": "02_Нужны_настройки/16_разделители_тысяч.xlsx",
+    "title": "Неоднозначная запятая",
+    "status": "settings",
+    "header_row": 1,
+    "valid_rows": 1,
+    "settings": {
+      "decimal_separator": "."
+    },
+    "note": "Авто: две ошибки. Выберите десятичный разделитель «Точка» → 1234, 12345, 1234567.",
+    "sheet": "Операции",
+    "records_after_settings": 3
+  },
+  {
+    "file": "02_Нужны_настройки/17_дата_со_временем.xlsx",
+    "title": "Даты с ненулевым временем",
+    "status": "settings",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {
+      "drop_time": true
+    },
+    "note": "Авто: две ошибки. Включите «Отбрасывать время» → даты 2026-10-06 и 2026-10-07.",
+    "sheet": "Операции",
+    "records_after_settings": 2
+  },
+  {
+    "file": "03_Ошибки/18_несуществующие_даты.xlsx",
+    "title": "Неверные календарные даты",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "Три ошибки дат: несуществующий день, месяц и двузначный год. Исправляются в редакторе.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  },
+  {
+    "file": "03_Ошибки/19_неверные_идентификаторы.xlsx",
+    "title": "Неверные БИН/ИИН",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "Три ошибки: короткий код, пустое обязательное поле и буква в коде.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  },
+  {
+    "file": "03_Ошибки/20_неверные_суммы.xlsx",
+    "title": "Ошибки сумм",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "Три ошибки: избыточная точность, неверная группировка тысяч, нечисловое значение.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  },
+  {
+    "file": "03_Ошибки/21_неоднозначные_валюты.xlsx",
+    "title": "Валюту нужно уточнить",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "Три ошибки. В редакторе укажите выбранный трёхбуквенный код валюты.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  },
+  {
+    "file": "03_Ошибки/22_конфликт_валют.xlsx",
+    "title": "Валюта в сумме отличается",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "Две ошибки: в столбце валюты KZT, а в суммах EUR и USD. Нужно уточнить данные.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  },
+  {
+    "file": "03_Ошибки/23_формулы_ошибки_итоги.xlsx",
+    "title": "Формулы, ошибка Excel и строка итога",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "Формула и ошибка Excel блокируются. Строка итога не удаляется автоматически; отделите её от данных в рабочей копии.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  },
+  {
+    "file": "03_Ошибки/24_неоднозначные_заголовки.xlsx",
+    "title": "Дублирующиеся заголовки",
+    "status": "blocked",
+    "header_row": 1,
+    "valid_rows": 0,
+    "settings": {},
+    "note": "БИН и ИИН подходят одному полю; автоматический выбор запрещён. Также нет столбца контрагента: исправьте сопоставление и структуру.",
+    "sheet": "Операции",
+    "records_after_settings": 0
+  }
+]

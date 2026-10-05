@@ -112,8 +112,8 @@ def create_example_pack(directory: str | Path) -> list[Path]:
             ws = wb.active
             ws.title = case['sheet']
             if case.get('multiple'):
-                ws = wb.create_sheet('Операции')
                 wb.worksheets[0].title = 'Инструкция'
+                ws = wb.create_sheet('Операции')
                 wb.worksheets[0].append(['Синтетический пример. Выберите лист Операции.'])
                 wb.create_sheet('Справка').append(['Этот лист не содержит операций.'])
             if case['header_row'] > 1:

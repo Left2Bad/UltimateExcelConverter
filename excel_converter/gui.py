@@ -360,6 +360,8 @@ class Application(ttk.Frame):
 
     def examples_created(self, paths):
         messagebox.showinfo('Учебные файлы готовы', f'Создано файлов: {len(paths)}.\n\nПапка: {paths[0].parent.parent}\nОписание сценариев: КАТАЛОГ.md\n\nСейчас откроется первый пример.')
+        self.profile = load_profile()
+        self.refresh_profile_label()
         self.load_file(paths[0])
 
     def toggle_fullscreen(self):
