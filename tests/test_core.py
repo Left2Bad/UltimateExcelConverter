@@ -98,7 +98,7 @@ class ConversionTests(unittest.TestCase):
     def test_strict_money(self):
         for value, expected in [('125 000,50', '125000.50'), ('1\u00a0234.20', '1234.20'), (0, '0'), ('-250,00', '-250.00')]:
             self.assertEqual(parse_value(value, self.spec('amount')), Decimal(expected))
-        for value in ['1,234', '1.234,56', '12 34', '1e5', 'NaN', 'Infinity', '1000000000000000', '1.005']:
+        for value in ['1,234', '12 34', 'NaN', 'Infinity', '1000000000000000', '1.005']:
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parse_value(value, self.spec('amount'))
 
@@ -109,9 +109,64 @@ class ConversionTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parse_value(value, self.spec('date'))
 
-    def test_numeric_document_rejected(self):
+    def test_flexible_amount_formats(self):
+        for value, expected in [('1,234.56', '1234.56'), ('1.234,56', '1234.56'), ("1’234.56", '1234.56'), ('(250,00)', '-250'), ('− 250,00', '-250'), ('1,234,567', '1234567'), ('1e5', '100000'), ('1250.5000', '1250.5'), ('₸ 1 250,50', '1250.50'), ('1 250,50 тг.', '1250.50')]:
+            with self.subTest(value=value):
+                self.assertEqual(parse_value(value, self.spec('amount')), Decimal(expected))
+        for value in ['1,23,456', '1.234.56', '(+250)', '123456789012345.000000000000000001', '12,3456', '12 345,67.8']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                parse_value(value, self.spec('amount'))
+        self.assertEqual(parse_value('1,234', dict(self.spec('amount'), decimal_separator='.')), Decimal(1234))
         with self.assertRaises(ValueError):
-            parse_value(123, self.spec('text'))
+            parse_value('1,234', dict(self.spec('amount'), decimal_separator=','))
+
+    def test_flexible_dates_and_explicit_policy(self):
+        for value in ['31/12/2026', '12/31/2026', '31-12-2026', '2026/12/31', '31 декабря 2026 г.', '31 Dec 2026', 'December 31, 2026', '31.12.2026 00:00:00']:
+            with self.subTest(value=value):
+                self.assertEqual(parse_value(value, self.spec('date')), date(2026, 12, 31))
+        self.assertEqual(parse_value('01/02/2026', dict(self.spec('date'), date_order='dmy')), date(2026, 2, 1))
+        self.assertEqual(parse_value('01/02/2026', dict(self.spec('date'), date_order='mdy')), date(2026, 1, 2))
+        self.assertEqual(parse_value('2026-12-31T12:30:00', dict(self.spec('date'), drop_time=True)), date(2026, 12, 31))
+        for value in ['2026-12-31T25:00', '31/12/26', '2026-12-31T12:00:00Z']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                parse_value(value, dict(self.spec('date'), drop_time=True))
+
+    def test_embedded_currency_mismatch(self):
+        good, _, _ = create_demo(self.directory)
+        result = self.converted(good)
+        fixed = convert(result.source, result.sheet, result.header_row, result.profile, result.mapping, {(4, 'amount'): '1 250,50 EUR'})
+        self.assertIn(4, fixed.invalid_rows)
+        fixed = convert(result.source, result.sheet, result.header_row, result.profile, result.mapping, {(4, 'amount'): '1 250,50 KZT'})
+        self.assertFalse(fixed.errors)
+        self.assertEqual(fixed.records[0]['amount'], Decimal('1250.50'))
+
+    def test_currency_variants(self):
+        for value, code in [('тенге', 'KZT'), (' тг. ', 'KZT'), ('₸', 'KZT'), ('398', 'KZT'), ('доллары США', 'USD'), ('€', 'EUR'), ('руб.', 'RUB')]:
+            self.assertEqual(parse_value(value, self.spec('currency')), code)
+        for value in ['$', '¥', 'неизвестно']:
+            with self.assertRaises(ValueError):
+                parse_value(value, self.spec('currency'))
+
+    def test_manual_corrections_revalidate_and_preserve_source(self):
+        _, bad, _ = create_demo(self.directory)
+        before = bad.read_bytes()
+        result = self.converted(bad)
+        fixes = {(7, 'date'): '2026-05-04', (7, 'identifier'): '000000012345', (7, 'amount'): '1234', (8, 'amount'): '300'}
+        corrected = convert(result.source, result.sheet, result.header_row, result.profile, result.mapping, fixes)
+        self.assertEqual(corrected.invalid_rows, [9])
+        self.assertEqual(corrected.records[3]['currency'], 'KZT')
+        self.assertTrue(any(c['kind'] == 'manual' for c in corrected.changes))
+        self.assertTrue(any(c['kind'] == 'normalization' for c in corrected.changes))
+        self.assertEqual(bad.read_bytes(), before)
+        fixes[(7, 'date')] = 'bad date'
+        rejected = convert(result.source, result.sheet, result.header_row, result.profile, result.mapping, fixes)
+        self.assertIn(7, rejected.invalid_rows)
+
+    def test_numeric_document_to_text(self):
+        self.assertEqual(parse_value(123, self.spec('text')), '123')
+        self.assertEqual(parse_value(123.0, self.spec('text')), '123')
+        self.assertEqual(parse_value('000123', self.spec('text')), '000123')
+        self.assertEqual(parse_value(1234.56, dict(self.spec('amount'), decimal_separator=',')), Decimal('1234.56'))
 
     def test_optional_blank_and_boolean(self):
         optional = self.profile['fields'][-1]

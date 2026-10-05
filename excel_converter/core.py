@@ -11,13 +11,15 @@ import re
 import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+from .parsing import flexible_date, flexible_amount, amount_parts
 
 MAX_ROWS = 100_000
 MAX_COLUMNS = 256
@@ -42,6 +44,7 @@ class Issue:
     row: int | None
     field: str
     message: str
+    field_id: str | None = None
 
 
 @dataclass
@@ -57,6 +60,8 @@ class Result:
     read_rows: int = 0
     blank_rows: list[int] = field(default_factory=list)
     invalid_rows: list[int] = field(default_factory=list)
+    corrections: dict = field(default_factory=dict)
+    changes: list[dict] = field(default_factory=list)
 
     @property
     def errors(self):
@@ -84,6 +89,10 @@ def validate_profile(profile: dict) -> dict:
             raise ValueError("Названия полей должны быть непустыми и уникальными (до 200 символов).")
         if f.get("kind") not in {"text", "date", "identifier", "amount", "currency"}:
             raise ValueError(f"Неизвестный тип поля: {key}.")
+        if f.get('date_order', 'auto') not in {'auto', 'dmy', 'mdy'} or f.get('decimal_separator', 'auto') not in {'auto', '.', ','}:
+            raise ValueError(f"Некорректные настройки распознавания: {key}.")
+        if not isinstance(f.get('drop_time', False), bool):
+            raise ValueError('drop_time должен быть true или false.')
         if not isinstance(f.get("required"), bool):
             raise ValueError(f"Укажите required: true или false для {key}.")
         aliases = f.get("aliases", [])
@@ -194,20 +203,7 @@ def parse_value(value: Any, spec: dict):
     if isinstance(value, bool):
         raise ValueError("Логическое значение не поддерживается в этом поле.")
     if kind == "date":
-        if isinstance(value, datetime):
-            if value.time().isoformat() != "00:00:00":
-                raise ValueError("Дата содержит время; его нельзя отбросить автоматически.")
-            return value.date()
-        if isinstance(value, date):
-            return value
-        text = str(value).strip()
-        for pattern, fmt in [(r"\d{4}-\d{2}-\d{2}", "%Y-%m-%d"), (r"\d{2}\.\d{2}\.\d{4}", "%d.%m.%Y")]:
-            if re.fullmatch(pattern, text):
-                try:
-                    return datetime.strptime(text, fmt).date()
-                except ValueError:
-                    break
-        raise ValueError("Нужна дата Excel, ДД.ММ.ГГГГ или ГГГГ-ММ-ДД. Другие форматы требуют уточнения.")
+        return flexible_date(value, spec)
     if kind == "identifier":
         if isinstance(value, (int, float)):
             if not math.isfinite(value) or value != int(value):
@@ -215,38 +211,52 @@ def parse_value(value: Any, spec: dict):
             text = str(int(value))
         else:
             text = str(value).strip()
+            if re.fullmatch(r'[0-9]{3}(?:[ -][0-9]{3}){3}', text):
+                text = text.replace(' ', '').replace('-', '')
         if not re.fullmatch(r"[0-9]{12}", text):
             raise ValueError("Нужно ровно 12 цифр. Утраченные ведущие нули не восстанавливаются автоматически.")
         return text
     if kind == "amount":
-        text = str(value).strip().replace("\u00a0", " ").replace("\u202f", " ")
-        if not re.fullmatch(r"[+-]?(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]{1,2})?", text):
-            raise ValueError("Нужна сумма с максимум 2 знаками после точки/запятой; группы тысяч — через пробел.")
-        try:
-            amount = Decimal(text.replace(" ", "").replace(",", "."))
-        except InvalidOperation:
-            raise ValueError("Некорректная сумма.") from None
-        if not amount.is_finite() or len(amount.as_tuple().digits) > 15:
-            raise ValueError("Сумма превышает безопасную точность Excel (15 цифр).")
-        return amount
+        return flexible_amount(value, spec)
     if kind == "currency":
         text = str(value).strip().upper()
+        aliases = {
+            "KZT": ["ТЕНГЕ", "ТГ", "ТГ.", "₸", "ТЕҢГЕ", "КАЗАХСТАНСКИЙ ТЕНГЕ", "398"],
+            "USD": ["ДОЛЛАР", "ДОЛЛАРЫ", "ДОЛЛАР США", "ДОЛЛАРЫ США", "US$", "840"],
+            "EUR": ["ЕВРО", "€", "978"],
+            "RUB": ["РУБ", "РУБ.", "РУБЛЬ", "РУБЛИ", "РОССИЙСКИЙ РУБЛЬ", "₽", "643"],
+            "GBP": ["ФУНТ СТЕРЛИНГОВ", "ФУНТЫ СТЕРЛИНГОВ", "£", "826"],
+            "CNY": ["ЮАНЬ", "ЮАНИ", "КИТАЙСКИЙ ЮАНЬ", "156"],
+        }
+        text = " ".join(text.split())
+        for code, variants in aliases.items():
+            if text in variants:
+                return code
         if not re.fullmatch(r"[A-Z]{3}", text):
-            raise ValueError("Укажите трёхбуквенный код валюты, например KZT. Допустимость кода проверяется по регламенту.")
+            raise ValueError("Валюта не распознана или неоднозначна (например $ или ¥). Укажите код: KZT, USD, EUR и т. д.")
         return text
     if not isinstance(value, str):
-        raise ValueError("Ожидается текст. Числовой код мог потерять ведущие нули; проверьте его и сохраните как текст.")
+        if isinstance(value, (int, float, Decimal)) and math.isfinite(value):
+            numeric = Decimal(str(value))
+            if len(numeric.as_tuple().digits) > 15:
+                raise ValueError('Числовой текст превышает точность Excel. Укажите исходный код вручную.')
+            value = format(numeric, 'f')
+            if '.' in value:
+                value = value.rstrip('0').rstrip('.')
+        else:
+            raise ValueError('Значение нельзя преобразовать в текст. Укажите текст вручную.')
     text = value.strip()
     if len(text) > 32767 or re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", text):
         raise ValueError("Текст содержит недопустимые символы или превышает лимит Excel.")
     return text
 
 
-def convert(source: Source, sheet: str, header_row: int, profile: dict, mapping: dict) -> Result:
+def convert(source: Source, sheet: str, header_row: int, profile: dict, mapping: dict, corrections: dict | None = None) -> Result:
     validate_profile(profile)
     rows = source.sheets[sheet]
     names = headers(rows, header_row)
     result = Result(source, sheet, header_row, profile, dict(mapping))
+    result.corrections = dict(corrections or {})
     used = []
     for f in profile["fields"]:
         index = mapping.get(f["id"])
@@ -279,10 +289,30 @@ def convert(source: Source, sheet: str, header_row: int, profile: dict, mapping:
         for f in profile["fields"]:
             index = mapping.get(f["id"])
             value = row[index] if index is not None and index < len(row) else None
+            original = value
+            key = (number, f["id"])
+            if key in result.corrections:
+                value = result.corrections[key]
+                result.changes.append({"row": number, "field": f["id"], "kind": "manual", "before": str(original), "after": str(value)})
             try:
                 record[f["id"]] = parse_value(value, f)
+                if value is not None and str(value) != str(record[f["id"]]):
+                    result.changes.append({"row": number, "field": f["id"], "kind": "normalization", "before": str(value), "after": str(record[f["id"]])})
             except ValueError as exc:
-                result.issues.append(Issue("error", number, f["title"], str(exc)))
+                result.issues.append(Issue("error", number, f["title"], str(exc), f["id"]))
+                bad = True
+        # A currency label inside an amount must agree with the dedicated currency field.
+        currencies = [record.get(f['id']) for f in profile['fields'] if f['kind'] == 'currency' and record.get(f['id'])]
+        for f in profile['fields']:
+            if f['kind'] != 'amount' or f['id'] not in record:
+                continue
+            index = mapping.get(f['id'])
+            raw_value = result.corrections.get((number, f['id']), row[index] if index is not None and index < len(row) else None)
+            if raw_value is None:
+                continue
+            _, embedded_currency = amount_parts(raw_value)
+            if embedded_currency and (not currencies or any(c != embedded_currency for c in currencies)):
+                result.issues.append(Issue('error', number, f['title'], f'В сумме указана {embedded_currency}, но поле валюты отсутствует или отличается. Уточните валюту и сумму.', f['id']))
                 bad = True
         if bad:
             result.invalid_rows.append(number)
@@ -316,6 +346,7 @@ def report_dict(result: Result) -> dict:
         "blank_source_rows": result.blank_rows,
         "output_row_to_source_row": {str(i): row for i, row in enumerate(result.source_rows, 2)},
         "issues": [asdict(issue) for issue in result.issues],
+        "changes": result.changes,
     }
 
 

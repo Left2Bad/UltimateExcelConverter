@@ -6,6 +6,7 @@ import copy
 import json
 import queue
 import threading
+import tempfile
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -14,7 +15,8 @@ from openpyxl.utils import get_column_letter
 
 from .core import (convert, export_result, headers, load_profile, load_source,
                    suggest_header, suggest_mapping, write_report)
-from .demo import create_demo
+from .demo import create_demo, create_scenario
+from .dpi import create_root, px, scale_widgets, apply_style_scale, watch_dpi
 
 
 class Application(ttk.Frame):
@@ -24,96 +26,29 @@ class Application(ttk.Frame):
         self.pack(fill="both", expand=True)
         self.source = None
         self.result = None
+        self.corrections = {}
         self.profile = load_profile()
         self.mapping_vars = {}
         self.mapping_options = []
         self.busy = False
         self.events = queue.Queue()
+        self.demo_key = None
+        self.demo_directories = []
         self.sheet_var = tk.StringVar()
         self.header_var = tk.StringVar(value="1")
         self.status = tk.StringVar(value="Откройте файл или создайте учебные примеры.")
         self.filename = tk.StringVar(value="Файл не выбран")
         self.profile_label = tk.StringVar()
         self.build_ui()
+        scale_widgets(self)
+        apply_style_scale(root)
         self.refresh_profile_label()
         self.header_var.trace_add("write", lambda *_: self.invalidate(clear_mapping=True))
         self.root.after(100, self.poll)
 
     def build_ui(self):
-        self.root.title("Excel Converter · локальный прототип")
-        self.root.geometry("1180x820")
-        self.root.minsize(950, 660)
-        style = ttk.Style()
-        if "clam" in style.theme_names():
-            style.theme_use("clam")
-        style.configure("TFrame", background="#f4f7fa")
-        style.configure("TLabel", background="#f4f7fa", foreground="#173e58", font=("Segoe UI", 10))
-        style.configure("Title.TLabel", font=("Segoe UI", 23, "bold"))
-        style.configure("TButton", font=("Segoe UI", 10), padding=(10, 6))
-        style.configure("Treeview", rowheight=27, font=("Segoe UI", 10))
-        style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"))
-        ttk.Label(self, text="Excel Converter", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(self, text="Подготовка таблиц • локальная обработка • проверка перед выгрузкой").pack(anchor="w", pady=(0, 12))
-        ttk.Label(self, textvariable=self.profile_label, wraplength=1100).pack(anchor="w", pady=(0, 12))
-        bar = ttk.Frame(self)
-        bar.pack(fill="x")
-        self.open_button = ttk.Button(bar, text="Открыть Excel / CSV", command=self.open_file)
-        self.open_button.pack(side="left")
-        self.demo_button = ttk.Button(bar, text="Создать демо", command=self.make_demo)
-        self.demo_button.pack(side="left", padx=6)
-        self.profile_button = ttk.Button(bar, text="Загрузить профиль", command=self.open_profile)
-        self.profile_button.pack(side="left")
-        self.save_profile_button = ttk.Button(bar, text="Сохранить профиль", command=self.save_profile)
-        self.save_profile_button.pack(side="left", padx=6)
-        ttk.Label(self, textvariable=self.filename, wraplength=1100).pack(anchor="w", pady=10)
-        controls = ttk.Frame(self)
-        controls.pack(fill="x", pady=(0, 12))
-        ttk.Label(controls, text="Лист:").pack(side="left")
-        self.sheet_box = ttk.Combobox(controls, textvariable=self.sheet_var, state="readonly", width=26)
-        self.sheet_box.pack(side="left", padx=7)
-        self.sheet_box.bind("<<ComboboxSelected>>", lambda _: self.select_sheet())
-        ttk.Label(controls, text="Строка заголовков:").pack(side="left", padx=(12, 4))
-        self.header_entry = ttk.Entry(controls, textvariable=self.header_var, width=7)
-        self.header_entry.pack(side="left", padx=5)
-        self.mapping_button = ttk.Button(controls, text="Применить заголовки", command=self.apply_headers)
-        self.mapping_button.pack(side="left", padx=8)
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True)
-        self.source_tab = ttk.Frame(self.notebook, padding=10)
-        self.mapping_tab = ttk.Frame(self.notebook, padding=10)
-        self.result_tab = ttk.Frame(self.notebook, padding=10)
-        self.issues_tab = ttk.Frame(self.notebook, padding=10)
-        for frame, title in [(self.source_tab, "1. Исходные данные"), (self.mapping_tab, "2. Сопоставление"), (self.result_tab, "3. Предпросмотр"), (self.issues_tab, "4. Проверки")]:
-            self.notebook.add(frame, text=title)
-        ttk.Label(self.source_tab, text="Первые 200 строк выбранного листа. Номера соответствуют исходному файлу.").pack(anchor="w", pady=(0, 8))
-        self.source_tree = self.make_tree(self.source_tab)
-        ttk.Label(self.mapping_tab, text="Выберите источник каждого поля. * — обязательное поле. Сохранённый профиль запоминает названия столбцов.", wraplength=1050).pack(anchor="w", pady=(0, 10))
-        # Scrollable mapping supports custom profiles with more fields than the demo.
-        canvas_frame = ttk.Frame(self.mapping_tab)
-        canvas_frame.pack(fill="both", expand=True)
-        self.mapping_canvas = tk.Canvas(canvas_frame, highlightthickness=0, background="#f4f7fa")
-        scroll = ttk.Scrollbar(canvas_frame, orient="vertical", command=self.mapping_canvas.yview)
-        self.mapping_canvas.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
-        self.mapping_canvas.pack(side="left", fill="both", expand=True)
-        self.mapping_frame = ttk.Frame(self.mapping_canvas)
-        self.mapping_canvas.create_window((0, 0), window=self.mapping_frame, anchor="nw")
-        self.mapping_frame.bind("<Configure>", lambda _: self.mapping_canvas.configure(scrollregion=self.mapping_canvas.bbox("all")))
-        self.summary = tk.StringVar(value="Сначала выполните проверку.")
-        ttk.Label(self.result_tab, textvariable=self.summary, wraplength=1050).pack(anchor="w", pady=(0, 8))
-        self.result_tree = self.make_tree(self.result_tab)
-        ttk.Label(self.issues_tab, text="Ошибки блокируют всю выгрузку. Предупреждения требуют просмотра. Двойной щелчок открывает сообщение целиком.", wraplength=1050).pack(anchor="w", pady=(0, 8))
-        self.issues_tree = self.make_tree(self.issues_tab)
-        self.issues_tree.bind("<Double-1>", self.show_issue)
-        footer = ttk.Frame(self)
-        footer.pack(fill="x", pady=(12, 0))
-        self.check_button = ttk.Button(footer, text="Проверить и преобразовать", command=self.check)
-        self.check_button.pack(side="left")
-        self.export_button = ttk.Button(footer, text="Сохранить результат", command=self.export, state="disabled")
-        self.export_button.pack(side="left", padx=8)
-        self.report_button = ttk.Button(footer, text="Сохранить отчёт", command=self.save_report, state="disabled")
-        self.report_button.pack(side="left")
-        ttk.Label(self, textvariable=self.status, wraplength=1100).pack(anchor="w", pady=(10, 0))
+        from .layout import build
+        build(self)
 
     @staticmethod
     def make_tree(parent):
@@ -137,19 +72,43 @@ class Application(ttk.Frame):
         tree.configure(columns=ids)
         for key, title in zip(ids, columns):
             tree.heading(key, text=title)
-            tree.column(key, width=175 if key != "0" else 95, minwidth=65, stretch=False)
-        for row in rows:
-            tree.insert("", "end", values=["" if v is None else str(v) for v in row])
+            tree.column(key, width=px(tree, 175 if key != "0" else 95), minwidth=px(tree, 65), stretch=False)
+        tree.tag_configure('even', background='#f7f9fc')
+        for index, row in enumerate(rows):
+            tree.insert("", "end", values=["" if v is None else str(v) for v in row], tags=('even',) if index % 2 else ())
 
     def refresh_profile_label(self):
         self.profile_label.set(self.profile["name"] + " · " + self.profile.get("description", "Пользовательский профиль"))
+        dates = next((f for f in self.profile['fields'] if f['kind'] == 'date'), {})
+        amounts = next((f for f in self.profile['fields'] if f['kind'] == 'amount'), {})
+        self.date_order.set({'auto': 'Авто', 'dmy': 'День–месяц–год', 'mdy': 'Месяц–день–год'}[dates.get('date_order', 'auto')])
+        self.decimal_separator.set({'auto': 'Авто', '.': 'Точка', ',': 'Запятая'}[amounts.get('decimal_separator', 'auto')])
+        self.drop_time.set(dates.get('drop_time', False))
 
-    def invalidate(self, clear_mapping=False):
+    def parsing_changed(self):
+        for field in self.profile['fields']:
+            if field['kind'] == 'date':
+                field['date_order'] = {'Авто': 'auto', 'День–месяц–год': 'dmy', 'Месяц–день–год': 'mdy'}[self.date_order.get()]
+                field['drop_time'] = self.drop_time.get()
+            elif field['kind'] == 'amount':
+                field['decimal_separator'] = {'Авто': 'auto', 'Точка': '.', 'Запятая': ','}[self.decimal_separator.get()]
+        self.invalidate(keep_corrections=True)
+        self.status.set('Правила распознавания изменены. Выполните проверку заново.')
+
+    def invalidate(self, clear_mapping=False, keep_corrections=False):
+        if not keep_corrections:
+            self.corrections = {}
         self.result = None
+        self.fix_button.configure(state="disabled")
         self.export_button.configure(state="disabled")
         self.report_button.configure(state="disabled")
         self.result_tree.delete(*self.result_tree.get_children())
         self.issues_tree.delete(*self.issues_tree.get_children())
+        self.changes_tree.delete(*self.changes_tree.get_children())
+        self.demo_fix_button.configure(state='disabled')
+        for variable in self.metric_vars:
+            variable.set('—')
+        self.check_hint.set('Настройки изменились. Проверьте данные заново.')
         self.summary.set("Настройки изменены. Выполните проверку заново.")
         if clear_mapping:
             self.mapping_vars.clear()
@@ -158,15 +117,30 @@ class Application(ttk.Frame):
 
     def set_busy(self, busy):
         self.busy = busy
-        for button in (self.open_button, self.demo_button, self.profile_button, self.save_profile_button, self.mapping_button, self.check_button):
+        for button in (self.open_button, self.other_file_button, self.demo_button, self.profile_button, *self.demo_buttons):
             button.configure(state="disabled" if busy else "normal")
+        for button in (self.save_profile_button, self.mapping_button, self.check_button, self.next_button):
+            button.configure(state='normal' if not busy and self.source else 'disabled')
+        self.demo_fix_button.configure(state='normal' if not busy and self.demo_key == 'errors' and self.result and self.result.errors else 'disabled')
+        if self.demo_key == 'errors':
+            self.demo_fix_button.pack(side='left', padx=8)
+        else:
+            self.demo_fix_button.pack_forget()
+        if busy:
+            self.progress.start(12)
+        else:
+            self.progress.stop()
         self.sheet_box.configure(state="disabled" if busy else "readonly")
         self.header_entry.configure(state="disabled" if busy else "normal")
+        self.date_order_box.configure(state='disabled' if busy else 'readonly')
+        self.decimal_box.configure(state='disabled' if busy else 'readonly')
+        self.time_check.configure(state='disabled' if busy else 'normal')
         for widget in self.mapping_frame.winfo_children():
             if isinstance(widget, ttk.Combobox):
                 widget.configure(state="disabled" if busy else "readonly")
         self.export_button.configure(state="normal" if not busy and self.result and not self.result.errors else "disabled")
         self.report_button.configure(state="normal" if not busy and self.result else "disabled")
+        self.fix_button.configure(state="normal" if not busy and self.result and any(i.field_id for i in self.result.errors) else "disabled")
 
     def run_background(self, operation, on_success, text):
         if self.busy:
@@ -194,6 +168,8 @@ class Application(ttk.Frame):
         self.root.after(100, self.poll)
 
     def open_file(self):
+        if self.busy:
+            return
         path = filedialog.askopenfilename(filetypes=[("Excel / CSV", "*.xlsx *.csv"), ("Все файлы", "*.*")])
         if path:
             self.load_file(path)
@@ -202,13 +178,15 @@ class Application(ttk.Frame):
         self.run_background(lambda: load_source(path), self.loaded, "Чтение файла…")
 
     def loaded(self, source):
+        self.demo_key = None
         self.source = source
         self.invalidate(clear_mapping=True)
-        self.filename.set(str(source.path))
+        self.filename.set(source.path.name)
         self.sheet_box.configure(values=list(source.sheets))
         self.sheet_var.set(next(iter(source.sheets)))
         self.select_sheet()
         self.notebook.select(self.source_tab)
+        self.set_busy(False)
 
     def select_sheet(self):
         if not self.source:
@@ -243,6 +221,7 @@ class Application(ttk.Frame):
             box = ttk.Combobox(self.mapping_frame, values=self.mapping_options, textvariable=variable, state="readonly", width=56)
             box.grid(row=row, column=1, sticky="w", padx=12)
             box.bind("<<ComboboxSelected>>", lambda _: self.invalidate())
+        scale_widgets(self.mapping_frame)
         self.status.set("Сопоставление предложено. Проверьте его перед преобразованием.")
 
     def get_mapping(self):
@@ -252,35 +231,68 @@ class Application(ttk.Frame):
                 for key, var in self.mapping_vars.items()}
 
     def check(self):
+        if self.busy:
+            return
         try:
             mapping = self.get_mapping()
             header = int(self.header_var.get())
         except ValueError as exc:
             messagebox.showerror("Проверка", str(exc))
             return
-        self.invalidate()
+        self.invalidate(keep_corrections=True)
         source, sheet, profile = self.source, self.sheet_var.get(), copy.deepcopy(self.profile)
-        self.run_background(lambda: convert(source, sheet, header, profile, mapping), self.checked, "Проверка и преобразование…")
+        corrections = dict(self.corrections)
+        self.run_background(lambda: convert(source, sheet, header, profile, mapping, corrections), self.checked, "Проверка и преобразование…")
 
     def checked(self, result):
         self.result = result
+        self.corrections = dict(result.corrections)
         warnings = len(result.issues) - len(result.errors)
         self.summary.set(f"Прочитано записей: {result.read_rows} • Корректных: {len(result.records)} • Ошибочных строк: {len(result.invalid_rows)} • Пустых: {len(result.blank_rows)}\n"
-                         f"Ошибок: {len(result.errors)} • Предупреждений: {warnings}. Предпросмотр первых 200 корректных записей.")
+                         f"Ошибок: {len(result.errors)} • Предупреждений: {warnings} • Преобразований и правок: {len(result.changes)}. Предпросмотр первых 200 корректных записей.")
         self.fill_tree(self.result_tree, ["Исх. строка"] + [f["title"] for f in result.profile["fields"]],
                        [[number, *record.values()] for number, record in list(zip(result.source_rows, result.records))[:200]])
         self.fill_tree(self.issues_tree, ["Уровень", "Строка", "Поле", "Описание"],
                        [["Ошибка" if issue.severity == "error" else "Внимание", issue.row, issue.field, issue.message] for issue in result.issues[:2000]])
-        self.issues_tree.column("3", width=740)
+        self.issues_tree.column("3", width=px(self, 740))
+        for item, issue in zip(self.issues_tree.get_children(), result.issues):
+            self.issues_tree.item(item, tags=(issue.severity,))
+        for variable, value in zip(self.metric_vars, [result.read_rows, len(result.records), len(result.errors), len(result.changes)]):
+            variable.set(str(value))
+        titles = {f['id']: f['title'] for f in result.profile['fields']}
+        self.fill_tree(self.changes_tree, ['Строка', 'Поле', 'Было', 'Стало', 'Способ'],
+                       [[c['row'], titles.get(c['field'], c['field']), c['before'], c['after'], 'Вручную' if c['kind'] == 'manual' else 'Автоматически'] for c in result.changes[:2000]])
+        self.changes_tree.column('2', width=px(self, 260))
+        self.changes_tree.column('3', width=px(self, 260))
+        self.check_hint.set(f'Ошибок: {len(result.errors)}. Предупреждений: {warnings}. ' +
+                            ('Исправьте красные строки. Жёлтые строки требуют просмотра.' if result.errors else 'Ошибок нет — результат можно сохранить.') +
+                            (' Учебный пример: можно применить заранее подготовленные исправления.' if self.demo_key == 'errors' and result.errors else ''))
         self.set_busy(False)
-        self.status.set(("Выгрузка заблокирована. Исправьте данные в копии файла и откройте её заново." if result.errors else "Проверка завершена. Результат готов к сохранению.") +
+        self.status.set(("Выгрузка заблокирована. Нажмите «Исправить ошибки» на вкладке «Проверки»; ошибки сопоставления исправляются в настройках." if result.errors else "Проверка завершена. Результат готов к сохранению.") +
                         (" Показаны первые 2000 замечаний; полный список — в отчёте." if len(result.issues) > 2000 else ""))
         self.notebook.select(self.issues_tab if result.errors else self.result_tab)
 
     def show_issue(self, _event):
         selection = self.issues_tree.selection()
         if selection:
+            if self.result and not self.busy:
+                issue = self.result.issues[self.issues_tree.index(selection[0])]
+                if issue.severity == 'error' and issue.field_id:
+                    dialog = self.edit_errors()
+                    for item, candidate in zip(dialog.tree.get_children(), dialog.items):
+                        if candidate.row == issue.row and candidate.field_id == issue.field_id:
+                            dialog.tree.selection_set(item)
+                            dialog.tree.see(item)
+                            dialog.select()
+                            break
+                    return
             messagebox.showinfo("Замечание", "\n".join(str(v) for v in self.issues_tree.item(selection[0], "values")))
+
+    def edit_errors(self):
+        if self.busy or not self.result or not any(i.field_id for i in self.result.errors):
+            return
+        from .corrections import CorrectionDialog
+        return CorrectionDialog(self)
 
     def export(self):
         if not self.result or self.result.errors:
@@ -345,8 +357,35 @@ class Application(ttk.Frame):
         if directory:
             self.run_background(lambda: create_demo(directory), lambda paths: self.load_file(paths[0]), "Создание учебных примеров…")
 
+    def toggle_fullscreen(self):
+        self.root.attributes('-fullscreen', not self.root.attributes('-fullscreen'))
+
+    def start_demo(self, scenario):
+        if self.busy:
+            return
+        directory = tempfile.TemporaryDirectory(prefix='excel-converter-demo-')
+        self.demo_directories.append(directory)
+        def prepare():
+            return load_source(create_scenario(directory.name, scenario))
+        def ready(source):
+            self.profile = load_profile()
+            self.refresh_profile_label()
+            self.loaded(source)
+            self.demo_key = scenario
+            self.filename.set('УЧЕБНЫЙ ПРИМЕР · ' + source.path.name)
+            self.check()
+        self.run_background(prepare, ready, 'Подготовка синтетического примера…')
+
+    def fix_demo(self):
+        if self.busy or self.demo_key != 'errors' or not self.result:
+            return
+        # Only synthetic scenarios expose this shortcut; real files use the cell editor.
+        self.corrections.update({(2, 'date'): '2026-05-04', (2, 'identifier'): '000000012345', (2, 'amount'): '1234.00'})
+        self.check()
+
 
 def launch():
-    root = tk.Tk()
+    root = create_root()
     Application(root)
+    watch_dpi(root)
     root.mainloop()

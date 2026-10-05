@@ -4,6 +4,30 @@ from pathlib import Path
 from openpyxl import Workbook
 
 
+def create_scenario(directory: str | Path, scenario: str) -> Path:
+    """One self-contained, repeatable presentation scenario per temporary directory."""
+    if scenario == 'csv':
+        return create_demo(directory)[2]
+    if scenario not in {'formats', 'errors'}:
+        raise ValueError('Неизвестный сценарий.')
+    path = Path(directory) / ('Разные форматы.xlsx' if scenario == 'formats' else 'Исправление ошибок.xlsx')
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Учебные операции'
+    ws.append(['Дата', 'Документ', 'БИН', 'Наименование', 'Сумма', 'Валюта', 'Назначение'])
+    ws.append(['31 декабря 2026', '0001', '001 234 567 890', 'Учебный контрагент А', '1.234,56', 'тенге', 'Учебная поставка'])
+    ws.append(['2026/12/30', '0002', '009876543210', 'Учебный контрагент Б', '2,345.67', '₸', 'Учебная услуга'])
+    ws.append(['29.12.2026 00:00', '0003', '000000000001', 'Учебный контрагент В', '(250,00)', 'тг.', 'Учебный возврат'])
+    if scenario == 'errors':
+        ws['A2'] = '04/05/2026'
+        ws['C2'] = '12345'
+        ws['E2'] = '1,234'
+    with path.open('xb') as stream:
+        wb.save(stream)
+    wb.close()
+    return path
+
+
 def create_demo(directory: str | Path) -> list[Path]:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
